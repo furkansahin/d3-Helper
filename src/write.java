@@ -82,7 +82,7 @@ public class write {
         HashMap<String, Edge> edges = getEdges(forumRelations);
 
         for (Edge edge : edges.values()){
-            res += "{\"source\":" + edge.source + ", \"target\":" + edge.target + ", \"value\":" + (edge.value*1000) + "},\n";
+            res += "{\"source\":" + edge.source + ", \"target\":" + edge.target + ", \"value\":" + (edge.value*1000) + ", \"week\":" + 1 + "},\n";
         }
 
         res = res.substring(0, res.length()-2);
