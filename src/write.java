@@ -1,8 +1,11 @@
+import com.sun.tools.javac.util.*;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.List;
 
 /**
  * Created by sahinfurkan on 23/10/15.
@@ -10,9 +13,10 @@ import java.util.*;
 public class write {
     public static void main(String[] args) throws IOException {
 
-        final int GRAPH_SIZE = 700;
+        final int GRAPH_SIZE = 1000;
         HashMap<String, Integer> indexes = new HashMap<>();
         HashMap<Integer, String> indexesKey = new HashMap<>();
+        HashMap<Integer, Boolean> students = new HashMap<>();
         int[] lst = new int[10];
         int[] sizes = new int[10];
         String res = "{\"nodes\":[";
@@ -22,12 +26,14 @@ public class write {
             lst[i] = 0;
             sizes[i] = 0;
         }
-
+        for (String lin : Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/list_of_students.csv"))){
+            students.put(Integer.parseInt(lin), false);
+        }
         // Finds the number of students for each grade interval from 10 to 100 by 10
         for (String line : Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/grades.csv"))){
             String[] tmp = line.split(",");
             int num = Integer.parseInt(tmp[8].substring(0, tmp[8].indexOf(".")));
-            if (num >= 10) {
+            if (num >= 10 && students.containsKey(Integer.parseInt(tmp[0]))) {
                 lst[(num-10) / 10] += 1;
                 sum++;
             }
@@ -39,25 +45,14 @@ public class write {
         for (int i = 0; i < 10; i++){
             lst[i] = (int)((((float)lst[i])/sum)*GRAPH_SIZE);
         }
-/*
-        while (sum2 < 200){
-            for (int i = 0; sum2 < 200 && i < 10; i++){
-                lst[lst.length - i - 1] += 1;
-                sum2++;
-            }
-        }
-        for (int i = 0; i < 10; i++){
-            System.out.println(lst[i]);
-        }
-        System.out.println(sum2);
-  */
+
         int a = 0;
         for (String line : Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/grades.csv"))){
             String node = "";
             String[] tmp = line.split(",");
             int num = Integer.parseInt(tmp[8].substring(0, tmp[8].indexOf(".")));
 
-            if (num >= 10 && sizes[(num-10)/10] < lst[(num-10)/10]) {
+            if (num >= 10 && students.containsKey(Integer.parseInt(tmp[0])) && sizes[(num-10)/10] < lst[(num-10)/10]) {
 
                 sizes[(num-10)/10]++;
                 indexes.put(tmp[0], a++);
@@ -75,14 +70,15 @@ public class write {
         res += "}";
 
 //        HashMap<Integer, Pair<Integer, String>> forumThreads = getForumThreads(indexesKey);
-        HashMap<Integer, HashMap<Integer, Boolean>> forumRelations = getForumRelations(indexes/*, forumThreads*/ );
+        HashMap<String, ArrayList<Integer>> forumRelations = getForumRelations(indexes/*, forumThreads*/ );
         int b = 0;
         res += "],\"links\":[";
 
         HashMap<String, Edge> edges = getEdges(forumRelations);
 
         for (Edge edge : edges.values()){
-            res += "{\"source\":" + edge.source + ", \"target\":" + edge.target + ", \"value\":" + (edge.value*1000) + ", \"week\":" + 1 + "},\n";
+            res += "{\"source\":" + edge.source + ", \"target\":" + edge.target +
+                    ", \"value\":" + (edge.value*1000) + ", \"week\":" + (edge.week + 1) + "},\n";
         }
 
         res = res.substring(0, res.length()-2);
@@ -94,90 +90,84 @@ public class write {
         writer.close();
     }
 
-    public static HashMap<String, Edge> getEdges(HashMap<Integer, HashMap<Integer, Boolean>> forumRelations){
+    public static HashMap<String, Edge> getEdges(HashMap<String, ArrayList<Integer>> forumRelations){
         HashMap<String, Edge> edges = new HashMap<>();
         int size = 0;
-        for (HashMap<Integer, Boolean> users: forumRelations.values()){
-            if(users.size() > 1){
-                size++;
+        Set<String> keysTemp = forumRelations.keySet();
+        ArrayList<String> keys = new ArrayList<>();
+        keys.addAll(keysTemp);
+        for (ArrayList<Integer> users: forumRelations.values()){
+            if(users.size() > 1) {
+                size += users.size();
             }
         }
-        for (HashMap<Integer, Boolean> users: forumRelations.values()){
-            Set<Integer> keys = users.keySet();
-            Integer[] arr = keys.toArray(new Integer[keys.size()]);
-            for (int i = 0; i < arr.length; i++){
-                for (int j = i + 1; j < arr.length; j++){
-                    if (edges.containsKey(arr[i] + "" + arr[j])){
-                        edges.get(arr[i] + "" + arr[j]).value += ((float)1)/ size;
-                    }
-                    else if(edges.containsKey(arr[j] + "" + arr[i])){
-                        edges.get(arr[j] + "" + arr[i]).value += ((float)1)/ size;
-                    }
-                    else{
-                        edges.put(arr[i] + "" + arr[j], new Edge(arr[i], arr[j], ((float)1)/ size));
+        for (String key:keys){
+            String week = key.substring(key.indexOf('-') + 1, key.length());
+            ArrayList<Integer> commenters = forumRelations.get(key);
+            if (commenters.size() >= 2)
+            {
+                for (int i = 0; i < commenters.size(); ++i){
+                    for (int j = i; j < commenters.size(); ++j){
+                        String hash = commenters.get(i) + "-" + commenters.get(j) + "-" + week;
+                        if (edges.containsKey(hash)){
+                            edges.get(hash).value += ((float)1)/ size;
+                        }
+                        else{
+                            edges.put(hash, new Edge(commenters.get(i), commenters.get(j),
+                                                    ((float)1)/size, Integer.parseInt(week)));
+                        }
                     }
                 }
             }
         }
         return edges;
+
+    /*    += ((float)1)/ size */
     }
+
     public static class Edge{
         public float value;
         public int source;
         public int target;
+        public int week;
 
-        public Edge(int source, int target, float value){
+        public Edge(Integer source, Integer target, float value, int week){
             this.source = source;
             this.target = target;
             this.value = value;
+            this.week = week;
         }
 
     }
-    /*
-    public static HashMap<Integer, Pair<Integer, String>> getForumThreads(HashMap<Integer, String> indexes){
-        HashMap<Integer, Pair<Integer, String>> forumThreads = new HashMap<Integer, Pair<Integer, String>>();
-        try{
-            List<String> allThreads = Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/forum_threads.csv"));
-            for (String count: allThreads){
-                String[] tmp = count.split(",");
-                if (indexes.containsKey(Integer.parseInt(tmp[2]))) {
-                    forumThreads.put(Integer.parseInt(tmp[0]), new Pair(Integer.parseInt(tmp[2]), tmp[17]));
-                }
-            }
-        }
-        catch(Exception e){
-        }
-        return forumThreads;
-    }
-*/
-    public static HashMap<Integer, HashMap<Integer, Boolean>> getForumRelations(HashMap<String, Integer> indexes/*,HashMap<Integer, Pair<Integer, String>> threads, */) {
-        HashMap<Integer, HashMap<Integer, Boolean>> forumRelations = new HashMap<Integer, HashMap<Integer, Boolean>>();
+    public static HashMap<String, ArrayList<Integer>> getForumRelations(HashMap<String, Integer> indexes/*,HashMap<Integer, Pair<Integer, String>> threads, */) {
+        HashMap<String, ArrayList<Integer>> forumRelations = new HashMap<>();
         try {
-            List<String> allPosts = Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/forum_posts.csv"));
+            List<String> allPosts = Files.readAllLines(Paths.get("/Users/sahinfurkan/Desktop/thread_page_views.csv"));
+            Long first = 1379349617L;
             for (String post : allPosts) {
                 String[] tmp = post.split(",");
                 int thread_id = Integer.parseInt(tmp[1]);
-                int commenter_id = Integer.parseInt(tmp[2]);
-    //            if (threads.containsKey(thread_id)) {
-    //                int owner_id = threads.get(thread_id).getLeft();
+                int commenter_id = Integer.parseInt(tmp[0]);
                     if (indexes.containsKey(commenter_id + "")) {
-  //                      if (commenter_id != owner_id) {
-                            if (forumRelations.containsKey(thread_id)) {
-                                if (!forumRelations.get(thread_id).containsKey(commenter_id)) {
-                                    forumRelations.get(thread_id).put(indexes.get(commenter_id + ""), false);
-                                }
+                        long week = getWeek(first, Long.parseLong(tmp[2].substring(0, tmp[2].length()-3)));
+                        if (forumRelations.containsKey(thread_id + "-" + week)) {
+                            if (!forumRelations.get(thread_id + "-" + week).contains(indexes.get(commenter_id + ""))) {
+                                forumRelations.get(thread_id + "-" + week).
+                                        add(indexes.get(commenter_id + ""));
                             }
-                            else{
-                                forumRelations.put(thread_id, new HashMap<>());
-                                forumRelations.get(thread_id).put(indexes.get(commenter_id+""), false);
-                            }
-   //                     }
-//                    }
+                        }
+                        else{
+                            forumRelations.put(thread_id + "-" + week, new ArrayList<>());
+                        }
                 }
             }
         } catch (Exception e) {
         }
         return forumRelations;
+    }
+
+    public static Long getWeek(long first, long actual){
+        return (((actual-first)/3600)/24)/7;
     }
 
 
